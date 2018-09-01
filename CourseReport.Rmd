@@ -1,30 +1,105 @@
 ---
 title: "Practical Machine Learning - Course Project"
 author: "Simone Costa"
-date: "01 settembre 2018"
-output: html_document
+date: "01 Sep 2018"
+output: 
+  prettydoc::html_pretty: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+## Introduction
+This is a report produced by participant **Simone Costa** as final assignment for Coursera's **Practical Machine Learning** course offered as part of the Data Science Specialization in collaboration with the John Hopkins University.
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+For more details about the program, including the information on the assignment itself, please see the link 
+<https://www.coursera.org/learn/practical-machine-learning/>.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+We will assume that the reader, as participant in the course, is familiar with the content of the assignment and so we will not describe it further but we will go straight to the writeup.
 
-```{r cars}
-summary(cars)
+## Getting and Cleaning the Data
+
+According to the assignment the location of the training and testing data is available at the following URLs:
+```{r urls, cache = TRUE}
+url_training <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+url_testing <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+```
+We load the data by taking into account that certain inputs are missing or could not be calculated and from a pre-inspection of the raw files this is indicated by text like NA, #DIV/0! or empty strings.
+
+```{r getData, cache = TRUE}
+training <- read.csv(url(url_training), na.strings=c("NA","#DIV/0!",""), header=TRUE)
+testing <- read.csv(url(url_testing), na.strings=c("NA","#DIV/0!",""), header=TRUE)
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+The training dataset contains `r dim(training)[2]` variables, but a lot of them are made almost exclusively of NAs so they are probably not very useful for predicting the class outcome. For this reason we remove all variables from both the training and testing datasets which have a count of NAs greater than 75% of the total observations with the following code.
+```{r removeNAs, cache = TRUE}
+rem_cols <- vector(mode = "numeric")
+for (n in seq_along(training)) 
+  if (sum(is.na(training[,n])) > 0.75*dim(training)[1]) {
+    rem_cols <- c(rem_cols, n)
+  }
+training <- training[,-rem_cols]
+testing <- testing[,-rem_cols]
+```
+This leaves us with a training dataset of size
+```{r sizeDS}
+dim(training)
+```
+There are also some variables in the dataset which are useful for record keeping but we do not want to use them for prediction, like the user name or the information relative to the timestamp of the execution. We thus choose to remove the first seven columns from the datasets
+```{r namesToRemove}
+data.frame(TRAINING = names(training)[1:7], TESTING = names(testing)[1:7])
+training <- training[,-c(1:7)]
+testing <- testing[,-c(1:7)]
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Finally we load some required libraries
+```{r loadLibraries}
+library(caret, quietly=TRUE)
+library(randomForest, warn.conflicts = FALSE, verbose = FALSE)
+```
+
+## Splitting the Training Dataset
+We use the caret package to subset the training dataset into two so that we can use a part of it for testing the model effectiveness. We use a 75-training/25-testing split.
+```{r dsSplit, cache=TRUE}
+set.seed(1111)
+pos_train <- createDataPartition(training$classe, p=0.75, list=FALSE)
+sub_training <- training[pos_train,]
+sub_testing <- training[-pos_train,]
+```
+
+## Training the Model
+We build a model with the random forest method and as training parameters we specify only that a 5-fold cross validation should be used to build the model: 5 is chosen to avoid excessive variance in the predictor and as a speed compromise over 10, although it will result in higher bias compared to 10.
+```{r trainRF, cache=TRUE}
+rfModel <- train(classe~., data=sub_training, method="rf", 
+      trControl = trainControl(method="cv", number=5))
+```
+We inspect the overall accuracy of the model if applied to the subset corresponding to the testing group.
+```{r accuracy}
+confusionMatrix(predict(rfModel, sub_testing), reference=sub_testing$classe)
+```
+From the output we can expect an accuracy of the model which is pretty high, ie. with good confidence the prediction should be correct in 99 cases out of 100 if applied out of sample.
+
+The random forest has been constructed with the default parameter of `r rfModel$finalModel$ntree` trees, however as can be seen from the plot below, 60-70 trees would actually suffice to get a similar accuracy for this problem.
+
+```{r finalModelPlot}
+plot(rfModel$finalModel, main="Error as a function of the forest size")
+```
+
+Below we assess which are the most important variables for the model, sorted by descending importance:
+```{r varImp}
+varImp(rfModel)
+```
+As can be seen from the plot which follows, moreover, the 20 most important variables reported above should already bring us close to the maximum accuracy and it is probably not necessary to use all 52 variables that we have specified when training the model.
+```{r plotofFactors}
+plot(rfModel, main="Accuracy as a function of # of factors", col="red", lwd=2)
+```
+
+## Applying the model to the 20 test cases
+The outcome of the model prediction for the 20 test cases is given by
+```{r finalPrediction}
+finalPrediction <- predict(rfModel, newdata=testing)
+data.frame(row.names = testing$problem_id, PREDICTION = finalPrediction)
+```
+
+
