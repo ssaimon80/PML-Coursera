@@ -18,8 +18,9 @@ For more details about the program, including the information on the assignment 
 
 We will assume that the reader, as participant in the course, is familiar with the content of the assignment and so we will not describe it further but we will go straight to the writeup.
 
-**- NOTE -** A good option to see this document as compiled HTML page is to use the GitHub previewer at the following link
-<http://htmlpreview.github.com/?https://github.com/ssaimon80/PML-Coursera/blob/master/CourseReport.html>
+**NOTE:** *If you are not reading the HTML version of the document a good option to see it with the proper formatting is to use the GitHub previewer at the following link*
+
+<https://htmlpreview.github.com/?https://github.com/ssaimon80/PML-Coursera/blob/master/CourseReport.html>
 
 ## Getting and Cleaning the Data
 
